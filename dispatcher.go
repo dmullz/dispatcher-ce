@@ -19,6 +19,8 @@ type RssFeed struct {
 	RssFeedUrl      string `json:"RSS_Feed_URL"`
 	LastUpdatedDate string `json:"Last_Updated_Date"`
 	Magazine        string `json:"Magazine"`
+	Language        string `json:"Language"`
+	PauseIngestion  bool   `json:"Pause_Ingestion"`
 }
 
 type Feed struct {
@@ -26,6 +28,7 @@ type Feed struct {
 	FeedUrl         string `json:"feed_url"`
 	LastUpdatedDate string `json:"last_updated_date"`
 	FeedName        string `json:"feed_name"`
+	Language        string `json:"language"`
 }
 
 func main() {
@@ -88,11 +91,15 @@ func main() {
 			os.Exit(1)
 		}
 		for _, rssfeed := range rssFeeds {
+			if rssfeed.PauseIngestion == true {
+				continue
+			}
 			feed := Feed{
 				Publisher:       doc.GetProperty("Publisher_Name").(string),
 				FeedUrl:         rssfeed.RssFeedUrl,
 				FeedName:        rssfeed.RssFeedName,
 				LastUpdatedDate: rssfeed.LastUpdatedDate,
+				Language:        rssfeed.Language,
 			}
 			feeds = append(feeds, feed)
 		}
