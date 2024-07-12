@@ -31,6 +31,10 @@ type Feed struct {
 	Language        string `json:"language"`
 }
 
+type FeedPayload struct {
+	FeedList []Feed `json:"feed_list"`
+}
+
 func main() {
 	//TODO Update last updated date in Cloudant
 
@@ -110,11 +114,16 @@ func main() {
 	wg := sync.WaitGroup{}
 
 	// URL to the Function
-	url := "http://parse-feed." + string(namespace) + ".svc.cluster.local"
+	url := os.Getenv("parse_feed_url")
 
 	// Do all requests to the Parse Feed Function in parallel - why not?
 	for i := 0; i < count; i++ {
-		payloadJson, _ := json.Marshal(feeds[i])
+		var payloadFeeds []Feed
+		payloadFeeds = append(payloadFeeds, feeds[i])
+		feedPayload := FeedPayload{
+			FeedList: payloadFeeds,
+		}
+		payloadJson, _ := json.Marshal(feedPayload)
 		wg.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wg.Done()
