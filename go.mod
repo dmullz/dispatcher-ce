@@ -1,8 +1,8 @@
 module github.com/dmullz/dispatcher-ce
 
-go 1.22.3
+go 1.21.4
 
-require github.com/IBM/cloudant-go-sdk v0.8.0
+require github.com/IBM/cloudant-go-sdk v0.7.6
 
 require (
 	github.com/IBM/go-sdk-core/v5 v5.17.4 // indirect
