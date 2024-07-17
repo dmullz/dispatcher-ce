@@ -141,7 +141,9 @@ func main() {
 				}
 				fmt.Fprintf(os.Stderr, "%d: err: %s\nhttp res: %#v\nbody:%s",
 					i, err, res, string(body))
-				time.Sleep(time.Second)
+				//turn off retries for now
+				break
+				//time.Sleep(time.Second)
 			}
 		}(i, payloadJson)
 	}
