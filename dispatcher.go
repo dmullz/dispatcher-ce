@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/IBM/cloudant-go-sdk/cloudantv1"
 )
