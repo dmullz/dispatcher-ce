@@ -34,6 +34,11 @@ type FeedPayload struct {
 	FeedList []Feed `json:"feed_list"`
 }
 
+type MagazineData struct {
+	Magazine        string
+	IngestionStatus int
+}
+
 func main() {
 	//TODO Update last updated date in Cloudant
 
@@ -51,7 +56,7 @@ func main() {
 		&cloudantv1.CloudantV1Options{},
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing Cloudant Service: %s", err)
+		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error initializing Cloudant Service: %s", err)
 		os.Exit(1)
 	}
 
@@ -75,7 +80,7 @@ func main() {
 	// Execute the query
 	findResult, _, err := service.PostFind(queryOptions)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error Finding All Documents using Cloudant Service: %s", err)
+		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Finding All Documents using Cloudant Service: %s", err)
 		os.Exit(1)
 	}
 
@@ -85,12 +90,12 @@ func main() {
 		var rssFeeds []RssFeed
 		b, err := json.Marshal(doc.GetProperty("RSS_Feeds"))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error Marshaling RSS_Feeds interface into JSON: %s", err)
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s", err)
 			os.Exit(1)
 		}
 		err = json.Unmarshal(b, &rssFeeds)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error Decoding JSON: %s", err)
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s", err)
 			os.Exit(1)
 		}
 		for _, rssfeed := range rssFeeds {
@@ -109,11 +114,14 @@ func main() {
 	}
 
 	count := len(feeds)
-	fmt.Printf("Sending %d requests to Parse Feeds...\n", count)
+	fmt.Printf(os.Getenv("env")+" Sending %d requests to Parse Feeds...\n", count)
 	wg := sync.WaitGroup{}
 
 	// URL to the Function
 	url := os.Getenv("parse_feed_url")
+
+	// Create channel to store Parse Feed responses
+	magDataCh := make(chan MagazineData, count)
 
 	// Do all requests to the Parse Feed Function in parallel - why not?
 	for i := 0; i < count; i++ {
@@ -124,12 +132,17 @@ func main() {
 		}
 		payloadJson, _ := json.Marshal(feedPayload)
 		wg.Add(1)
-		go func(i int, payloadJson []byte) {
+		go func(i int, payloadJson []byte, magazine string) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
 				res, err := http.Post(url, "application/json", bytes.NewBuffer(payloadJson))
 
 				if err == nil && res.StatusCode/100 == 2 {
+					magData := MagazineData{
+						Magazine:        magazine,
+						IngestionStatus: 0,
+					}
+					magDataCh <- magData
 					break
 				}
 
@@ -138,17 +151,35 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, "%d: err: %s\nhttp res: %#v\nbody:%s",
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" %d: err: %s\nhttp res: %#v\nbody:%s",
 					i, err, res, string(body))
 				//turn off retries for now
+				magData := MagazineData{
+					Magazine:        magazine,
+					IngestionStatus: 1,
+				}
+				magDataCh <- magData
 				break
 				//time.Sleep(time.Second)
 			}
-		}(i, payloadJson)
+		}(i, payloadJson, feeds[i].FeedName)
 	}
 
 	// Wait for all threads to finish before we exit
 	wg.Wait()
+	close(magDataCh)
 
-	fmt.Printf("Done\n")
+	// Gather Data From Channel
+	allMagData := make(map[string]int)
+	for chValue := range magDataCh {
+		allMagData[chValue.Magazine] = chValue.IngestionStatus
+	}
+
+	numErrors := 0
+	for key := range allMagData {
+		numErrors += allMagData[key]
+	}
+
+	fmt.Printf(os.Getenv("env")+" Done Dispatching for %d feeds with %d Errors\n", count, numErrors)
+	fmt.Printf(os.Getenv("env") + " Done\n")
 }
