@@ -34,9 +34,18 @@ type FeedPayload struct {
 	FeedList []Feed `json:"feed_list"`
 }
 
-type MagazineData struct {
-	Magazine        string
-	IngestionStatus int
+type ParsedData struct {
+	Body         []byte
+	ParsedStatus int
+}
+
+type DufRes struct {
+	Leads []string `json:"leads"`
+}
+
+type LeadsData struct {
+	Leads        []string
+	DownUpStatus int
 }
 
 func main() {
@@ -115,34 +124,46 @@ func main() {
 
 	count := len(feeds)
 	fmt.Printf(os.Getenv("env")+" Sending %d requests to Parse Feeds...\n", count)
-	wg := sync.WaitGroup{}
+	wgPF := sync.WaitGroup{}
 
 	// URL to the Function
 	url := os.Getenv("parse_feed_url")
 
 	// Create channel to store Parse Feed responses
-	magDataCh := make(chan MagazineData, count)
+	parsedDataCh := make(chan ParsedData, int(count/4)+count%4)
 
-	// Do all requests to the Parse Feed Function in parallel - why not?
-	for i := 0; i < count; i++ {
+	i := 0
+	for i < count {
 		var payloadFeeds []Feed
-		payloadFeeds = append(payloadFeeds, feeds[i])
+		if i+3 >= count {
+			payloadFeeds = append(payloadFeeds, feeds[i])
+			i++
+		} else {
+			payloadFeeds = append(payloadFeeds, feeds[i])
+			payloadFeeds = append(payloadFeeds, feeds[i+1])
+			payloadFeeds = append(payloadFeeds, feeds[i+2])
+			payloadFeeds = append(payloadFeeds, feeds[i+3])
+			i = i + 4
+		}
+
 		feedPayload := FeedPayload{
 			FeedList: payloadFeeds,
 		}
 		payloadJson, _ := json.Marshal(feedPayload)
-		wg.Add(1)
-		go func(i int, payloadJson []byte, magazine string) {
-			defer wg.Done()
+		wgPF.Add(1)
+		go func(i int, payloadJson []byte) {
+			defer wgPF.Done()
 			for j := 0; j < 10; j++ {
 				res, err := http.Post(url, "application/json", bytes.NewBuffer(payloadJson))
 
 				if err == nil && res.StatusCode/100 == 2 {
-					magData := MagazineData{
-						Magazine:        magazine,
-						IngestionStatus: 0,
+					body := []byte{}
+					body, _ = ioutil.ReadAll(res.Body)
+					parsedData := ParsedData{
+						Body:         body,
+						ParsedStatus: 0,
 					}
-					magDataCh <- magData
+					parsedDataCh <- parsedData
 					break
 				}
 
@@ -151,35 +172,108 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Feed: (%s); err: (%s); status: (%d); body: (%s)\n",
-					magazine, err, res.StatusCode, string(body))
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i/4, err, res.StatusCode, string(body))
 				//turn off retries for now
-				magData := MagazineData{
-					Magazine:        magazine,
-					IngestionStatus: 1,
+				parsedData := ParsedData{
+					Body:         body,
+					ParsedStatus: 1,
 				}
-				magDataCh <- magData
+				parsedDataCh <- parsedData
 				break
 				//time.Sleep(time.Second)
 			}
-		}(i, payloadJson, feeds[i].FeedName)
+		}(i, payloadJson)
 	}
 
 	// Wait for all threads to finish before we exit
-	wg.Wait()
-	close(magDataCh)
+	wgPF.Wait()
+	close(parsedDataCh)
 	fmt.Printf(os.Getenv("env") + " Done Dispatching Feeds\n")
 
 	// Gather Data From Channel
-	allMagData := make(map[string]int)
-	for chValue := range magDataCh {
-		allMagData[chValue.Magazine] = chValue.IngestionStatus
-	}
-
+	var allParsedData [][]byte
 	numErrors := 0
-	for key := range allMagData {
-		numErrors = numErrors + allMagData[key]
+	for chValue := range parsedDataCh {
+		if chValue.ParsedStatus == 0 {
+			allParsedData = append(allParsedData, chValue.Body)
+		} else {
+			numErrors++
+		}
 	}
 
 	fmt.Printf(os.Getenv("env")+" Dispatched %d feeds with %d Errors\n", count, numErrors)
+
+	count = len(allParsedData)
+	fmt.Printf(os.Getenv("env")+" Sending %d requests to Download Upload Feed...\n", count)
+	wgDUF := sync.WaitGroup{}
+
+	// URL to the Function
+	url = os.Getenv("download_upload_url")
+
+	// Create channel to store Download Upload responses
+	leadsDataCh := make(chan LeadsData, count)
+
+	for i = 0; i < count; i++ {
+		wgDUF.Add(1)
+		go func(i int, payloadJson []byte) {
+			defer wgDUF.Done()
+			for j := 0; j < 10; j++ {
+				res, err := http.Post(url, "application/json", bytes.NewBuffer(payloadJson))
+
+				if err == nil && res.StatusCode/100 == 2 {
+					var dufRes DufRes
+					err := json.NewDecoder(res.Body).Decode(&dufRes)
+					if err != nil {
+						fmt.Println("JSON decode for DOWNLOAD UPLOAD FEED RESPONSE error!")
+						panic(err)
+					}
+					leadsData := LeadsData{
+						Leads:        dufRes.Leads,
+						DownUpStatus: 0,
+					}
+					leadsDataCh <- leadsData
+					break
+				}
+
+				// Something went wrong, pause and try again
+				body := []byte{}
+				if res != nil {
+					body, _ = ioutil.ReadAll(res.Body)
+				}
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
+				//turn off retries for now
+				leadsData := LeadsData{
+					Leads:        nil,
+					DownUpStatus: 1,
+				}
+				leadsDataCh <- leadsData
+				break
+				//time.Sleep(time.Second)
+			}
+		}(i, allParsedData[i])
+	}
+
+	// Wait for all threads to finish before we exit
+	wgDUF.Wait()
+	close(leadsDataCh)
+	fmt.Printf(os.Getenv("env") + " Done Downloading/Uploading Feeds\n")
+
+	// Gather Data From Channel
+	var allLeads []string
+	numErrors = 0
+	for chValue := range leadsDataCh {
+		if chValue.DownUpStatus == 0 {
+			for _, lead := range chValue.Leads {
+				allLeads = append(allLeads, lead)
+			}
+		} else {
+			numErrors++
+		}
+	}
+
+	fmt.Printf(os.Getenv("env")+" Dispatched %d download/upload threads with %d Errors\n", count, numErrors)
+
+	count = len(allLeads)
+	fmt.Printf(os.Getenv("env")+" Creating %d Leads...\n", count)
+
 }
