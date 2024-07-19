@@ -46,7 +46,7 @@ func main() {
 	file := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	namespace, err := ioutil.ReadFile(file)
 	if err != nil || len(namespace) == 0 {
-		fmt.Fprintf(os.Stderr, "Missing namespace: %s\n%s\n", err, namespace)
+		fmt.Fprintf(os.Stderr, "Missing namespace: %s; %s\n", err, namespace)
 		os.Exit(1)
 	}
 
@@ -56,7 +56,7 @@ func main() {
 		&cloudantv1.CloudantV1Options{},
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error initializing Cloudant Service: %s", err)
+		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error initializing Cloudant Service: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -80,7 +80,7 @@ func main() {
 	// Execute the query
 	findResult, _, err := service.PostFind(queryOptions)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Finding All Documents using Cloudant Service: %s", err)
+		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Finding All Documents using Cloudant Service: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -90,12 +90,12 @@ func main() {
 		var rssFeeds []RssFeed
 		b, err := json.Marshal(doc.GetProperty("RSS_Feeds"))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s", err)
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s\n", err)
 			os.Exit(1)
 		}
 		err = json.Unmarshal(b, &rssFeeds)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s", err)
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s\n", err)
 			os.Exit(1)
 		}
 		for _, rssfeed := range rssFeeds {
@@ -151,8 +151,8 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, os.Getenv("env")+" %d: err: %s\nhttp res: %#v\nbody:%s",
-					i, err, res, string(body))
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Feed: (%s); err: (%s); status: (%d); body: (%s)\n",
+					magazine, err, res.StatusCode, string(body))
 				//turn off retries for now
 				magData := MagazineData{
 					Magazine:        magazine,
@@ -168,6 +168,7 @@ func main() {
 	// Wait for all threads to finish before we exit
 	wg.Wait()
 	close(magDataCh)
+	fmt.Printf(os.Getenv("env") + " Done Dispatching Feeds\n")
 
 	// Gather Data From Channel
 	allMagData := make(map[string]int)
@@ -177,9 +178,8 @@ func main() {
 
 	numErrors := 0
 	for key := range allMagData {
-		numErrors += allMagData[key]
+		numErrors = numErrors + allMagData[key]
 	}
 
-	fmt.Printf(os.Getenv("env")+" Done Dispatching for %d feeds with %d Errors\n", count, numErrors)
-	fmt.Printf(os.Getenv("env") + " Done\n")
+	fmt.Printf(os.Getenv("env")+" Dispatched %d feeds with %d Errors\n", count, numErrors)
 }
