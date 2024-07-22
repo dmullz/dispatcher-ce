@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/IBM/cloudant-go-sdk/cloudantv1"
 )
@@ -46,6 +48,11 @@ type DufRes struct {
 type LeadsData struct {
 	Leads        []string
 	DownUpStatus int
+}
+
+type LBAResults struct {
+	ArticleId           string
+	LeadByArticleStatus int
 }
 
 func main() {
@@ -127,7 +134,7 @@ func main() {
 	wgPF := sync.WaitGroup{}
 
 	// URL to the Function
-	url := os.Getenv("parse_feed_url")
+	pfUrl := os.Getenv("parse_feed_url")
 
 	// Create channel to store Parse Feed responses
 	parsedDataCh := make(chan ParsedData, int(count/4)+count%4)
@@ -153,8 +160,8 @@ func main() {
 		wgPF.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wgPF.Done()
-			for j := 0; j < 10; j++ {
-				res, err := http.Post(url, "application/json", bytes.NewBuffer(payloadJson))
+			for j := 0; j < 3; j++ {
+				res, err := http.Post(pfUrl, "application/json", bytes.NewBuffer(payloadJson))
 
 				if err == nil && res.StatusCode/100 == 2 {
 					body := []byte{}
@@ -173,14 +180,17 @@ func main() {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
 				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i/4, err, res.StatusCode, string(body))
-				//turn off retries for now
-				parsedData := ParsedData{
-					Body:         body,
-					ParsedStatus: 1,
+				if j > 2 {
+					// Done retries, store error and exit
+					parsedData := ParsedData{
+						Body:         body,
+						ParsedStatus: 1,
+					}
+					parsedDataCh <- parsedData
+					break
 				}
-				parsedDataCh <- parsedData
-				break
-				//time.Sleep(time.Second)
+
+				time.Sleep(time.Second)
 			}
 		}(i, payloadJson)
 	}
@@ -208,7 +218,7 @@ func main() {
 	wgDUF := sync.WaitGroup{}
 
 	// URL to the Function
-	url = os.Getenv("download_upload_url")
+	dufUrl := os.Getenv("download_upload_url")
 
 	// Create channel to store Download Upload responses
 	leadsDataCh := make(chan LeadsData, count)
@@ -217,8 +227,8 @@ func main() {
 		wgDUF.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wgDUF.Done()
-			for j := 0; j < 10; j++ {
-				res, err := http.Post(url, "application/json", bytes.NewBuffer(payloadJson))
+			for j := 0; j < 3; j++ {
+				res, err := http.Post(dufUrl, "application/json", bytes.NewBuffer(payloadJson))
 
 				if err == nil && res.StatusCode/100 == 2 {
 					var dufRes DufRes
@@ -241,14 +251,16 @@ func main() {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
 				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
-				//turn off retries for now
-				leadsData := LeadsData{
-					Leads:        nil,
-					DownUpStatus: 1,
+				if j > 2 {
+					// Done retries, store error in Channel and exit
+					leadsData := LeadsData{
+						Leads:        nil,
+						DownUpStatus: 1,
+					}
+					leadsDataCh <- leadsData
+					break
 				}
-				leadsDataCh <- leadsData
-				break
-				//time.Sleep(time.Second)
+				time.Sleep(time.Second)
 			}
 		}(i, allParsedData[i])
 	}
@@ -276,4 +288,81 @@ func main() {
 	count = len(allLeads)
 	fmt.Printf(os.Getenv("env")+" Creating %d Leads...\n", count)
 
+	// URL to the Function
+	lbaUrl := os.Getenv("lead_by_article_url")
+
+	// Run Lead by article for every lead in batches of 200
+
+	startIndex := 0
+	batchCount := 1
+	totalLeadsCreated := 0
+	for startIndex < count {
+		wgLBA := sync.WaitGroup{}
+		// Create channel to store Lead By Article responses
+		lbaResCh := make(chan LBAResults, min(200, count-startIndex))
+		i = startIndex
+		for i < startIndex+200 && i < count {
+			params := url.Values{}
+			params.Add("article_id", allLeads[i])
+			fullURL := lbaUrl + "?" + params.Encode()
+			wgLBA.Add(1)
+			go func(i int, articleId string, fullURL string) {
+				defer wgLBA.Done()
+				for j := 0; j < 3; j++ {
+					res, err := http.Get(fullURL)
+
+					if err == nil && res.StatusCode/100 == 2 {
+						lbaResults := LBAResults{
+							ArticleId:           articleId,
+							LeadByArticleStatus: 0,
+						}
+						lbaResCh <- lbaResults
+						break
+					}
+
+					// Something went wrong, pause and try again
+					body := []byte{}
+					if res != nil {
+						body, _ = ioutil.ReadAll(res.Body)
+					}
+					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
+					if j > 2 {
+						// Done retries, store error in Channel and exit
+						lbaResults := LBAResults{
+							ArticleId:           articleId,
+							LeadByArticleStatus: 1,
+						}
+						lbaResCh <- lbaResults
+						break
+					}
+					time.Sleep(time.Second)
+				}
+			}(i, allLeads[i], fullURL)
+		}
+
+		// Wait for all threads to finish
+		wgLBA.Wait()
+		close(lbaResCh)
+		fmt.Printf(os.Getenv("env")+" Done Batch %d of Lead By Article\n", batchCount)
+
+		// Gather Data From Channel
+		numErrors = 0
+		numLeads := 0
+		for chValue := range lbaResCh {
+			if chValue.LeadByArticleStatus == 1 {
+				numErrors++
+				fmt.Printf(os.Getenv("env")+" Unable to create lead for article with ID: %s\n", chValue.ArticleId)
+			} else {
+				numLeads++
+			}
+		}
+
+		fmt.Printf(os.Getenv("env")+" Batch #: %d; Created %d leads with %d Errors\n", batchCount, numLeads, numErrors)
+		totalLeadsCreated = totalLeadsCreated + numLeads
+
+		startIndex = startIndex + 200
+		batchCount++
+	}
+
+	fmt.Printf(os.Getenv("env")+" Done. %d Leads Created\n", totalLeadsCreated)
 }
