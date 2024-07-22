@@ -179,8 +179,9 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i/4, err, res.StatusCode, string(body))
-				if j > 2 {
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload: (%s)\n",
+					i/4, err, res.StatusCode, string(body), string(payloadJson))
+				if j >= 2 {
 					// Done retries, store error and exit
 					parsedData := ParsedData{
 						Body:         body,
@@ -251,7 +252,7 @@ func main() {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
 				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
-				if j > 2 {
+				if j >= 2 {
 					// Done retries, store error in Channel and exit
 					leadsData := LeadsData{
 						Leads:        nil,
@@ -326,7 +327,7 @@ func main() {
 						body, _ = ioutil.ReadAll(res.Body)
 					}
 					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
-					if j > 2 {
+					if j >= 2 {
 						// Done retries, store error in Channel and exit
 						lbaResults := LBAResults{
 							ArticleId:           articleId,
@@ -338,6 +339,7 @@ func main() {
 					time.Sleep(time.Second)
 				}
 			}(i, allLeads[i], fullURL)
+			i++
 		}
 
 		// Wait for all threads to finish
