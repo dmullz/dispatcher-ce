@@ -160,7 +160,7 @@ func main() {
 		wgPF.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wgPF.Done()
-			for j := 0; j < 3; j++ {
+			for j := 0; j < 5; j++ {
 				res, err := http.Post(pfUrl, "application/json", bytes.NewBuffer(payloadJson))
 
 				if err == nil && res.StatusCode/100 == 2 {
@@ -179,10 +179,10 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload: (%s)\n",
-					i/4, err, res.StatusCode, string(body), string(payloadJson))
-				if j >= 2 {
+				if j >= 4 {
 					// Done retries, store error and exit
+					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload: (%s)\n",
+						i/4, err, res.StatusCode, string(body), string(payloadJson))
 					parsedData := ParsedData{
 						Body:         body,
 						ParsedStatus: 1,
@@ -190,7 +190,8 @@ func main() {
 					parsedDataCh <- parsedData
 					break
 				}
-
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n",
+					i/4, err, res.StatusCode, string(body))
 				time.Sleep(time.Second)
 			}
 		}(i, payloadJson)
@@ -228,7 +229,7 @@ func main() {
 		wgDUF.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wgDUF.Done()
-			for j := 0; j < 3; j++ {
+			for j := 0; j < 5; j++ {
 				res, err := http.Post(dufUrl, "application/json", bytes.NewBuffer(payloadJson))
 
 				if err == nil && res.StatusCode/100 == 2 {
@@ -251,9 +252,10 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
 				if j >= 2 {
 					// Done retries, store error in Channel and exit
+					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload: (%s)\n",
+						i, err, res.StatusCode, string(body), string(payloadJson))
 					leadsData := LeadsData{
 						Leads:        nil,
 						DownUpStatus: 1,
@@ -261,6 +263,8 @@ func main() {
 					leadsDataCh <- leadsData
 					break
 				}
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n",
+					i, err, res.StatusCode, string(body))
 				time.Sleep(time.Second)
 			}
 		}(i, allParsedData[i])
@@ -309,7 +313,7 @@ func main() {
 			wgLBA.Add(1)
 			go func(i int, articleId string, fullURL string) {
 				defer wgLBA.Done()
-				for j := 0; j < 3; j++ {
+				for j := 0; j < 5; j++ {
 					res, err := http.Get(fullURL)
 
 					if err == nil && res.StatusCode/100 == 2 {
@@ -326,8 +330,9 @@ func main() {
 					if res != nil {
 						body, _ = ioutil.ReadAll(res.Body)
 					}
-					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n", i, err, res.StatusCode, string(body))
-					if j >= 2 {
+					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); article_id: (%s)\n",
+						i, err, res.StatusCode, string(body), articleId)
+					if j >= 4 {
 						// Done retries, store error in Channel and exit
 						lbaResults := LBAResults{
 							ArticleId:           articleId,
