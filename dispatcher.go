@@ -160,6 +160,7 @@ func main() {
 		wgPF.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wgPF.Done()
+			sleep := 1
 			for j := 0; j < 10; j++ {
 				res, err := http.Post(pfUrl, "application/json", bytes.NewBuffer(payloadJson))
 
@@ -192,7 +193,8 @@ func main() {
 				}
 				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n",
 					i/4, err, res.StatusCode, string(body))
-				time.Sleep(time.Second)
+				time.Sleep(time.Second * time.Duration(sleep))
+				sleep *= 2
 			}
 		}(i, payloadJson)
 	}
