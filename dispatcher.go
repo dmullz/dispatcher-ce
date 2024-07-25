@@ -231,6 +231,7 @@ func main() {
 		wgDUF.Add(1)
 		go func(i int, payloadJson []byte) {
 			defer wgDUF.Done()
+			sleep := 1
 			for j := 0; j < 10; j++ {
 				res, err := http.Post(dufUrl, "application/json", bytes.NewBuffer(payloadJson))
 
@@ -254,8 +255,8 @@ func main() {
 				if res != nil {
 					body, _ = ioutil.ReadAll(res.Body)
 				}
-				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload size: (%s)\n",
-					i, err, res.StatusCode, string(body), string(len(payloadJson)))
+				fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload size: (%d)\n",
+					i, err, res.StatusCode, string(body), len(payloadJson))
 				if j >= 9 {
 					// Done retries, store error in Channel and exit
 					leadsData := LeadsData{
@@ -265,7 +266,8 @@ func main() {
 					leadsDataCh <- leadsData
 					break
 				}
-				time.Sleep(time.Second)
+				time.Sleep(time.Second * time.Duration(sleep))
+				sleep *= 2
 			}
 		}(i, allParsedData[i])
 	}
