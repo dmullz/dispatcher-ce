@@ -190,8 +190,8 @@ func main() {
 						parsedDataCh <- parsedData
 						break
 					}
-					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n",
-						i, err, res.StatusCode, string(body))
+					//fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n",
+					//	i, err, res.StatusCode, string(body))
 					time.Sleep(time.Second * time.Duration(sleep))
 					sleep *= 2
 				}
@@ -268,10 +268,10 @@ func main() {
 					if res != nil {
 						body, _ = ioutil.ReadAll(res.Body)
 					}
-					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload size: (%d)\n",
-						i, err, res.StatusCode, string(body), len(payloadJson))
 					if j >= 9 {
 						// Done retries, store error in Channel and exit
+						fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload size: (%d)\n",
+							i, err, res.StatusCode, string(body), len(payloadJson))
 						leadsData := LeadsData{
 							Leads:        nil,
 							DownUpStatus: 1,
@@ -351,10 +351,11 @@ func main() {
 					if res != nil {
 						body, _ = ioutil.ReadAll(res.Body)
 					}
-					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); article_id: (%s)\n",
-						i, err, res.StatusCode, string(body), articleId)
+
 					if j >= 9 {
 						// Done retries, store error in Channel and exit
+						fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); article_id: (%s)\n",
+							i, err, res.StatusCode, string(body), articleId)
 						lbaResults := LBAResults{
 							ArticleId:           articleId,
 							LeadByArticleStatus: 1,
