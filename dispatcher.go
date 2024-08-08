@@ -151,7 +151,6 @@ func main() {
 		for i < startIndex+200 && i < count {
 			var payloadFeeds []Feed
 			payloadFeeds = append(payloadFeeds, feeds[i])
-			i++
 
 			feedPayload := FeedPayload{
 				FeedList: payloadFeeds,
@@ -183,7 +182,7 @@ func main() {
 					if j >= 9 {
 						// Done retries, store error and exit
 						fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s); payload: (%s)\n",
-							i/4, err, res.StatusCode, string(body), string(payloadJson))
+							i, err, res.StatusCode, string(body), string(payloadJson))
 						parsedData := ParsedData{
 							Body:         body,
 							ParsedStatus: 1,
@@ -192,11 +191,12 @@ func main() {
 						break
 					}
 					fmt.Fprintf(os.Stderr, os.Getenv("env")+" Thread #: (%d); err: (%s); status: (%d); body: (%s)\n",
-						i/4, err, res.StatusCode, string(body))
+						i, err, res.StatusCode, string(body))
 					time.Sleep(time.Second * time.Duration(sleep))
 					sleep *= 2
 				}
 			}(i, payloadJson)
+			i++
 		}
 
 		// Wait for all threads to finish before we exit
@@ -283,6 +283,7 @@ func main() {
 					sleep *= 2
 				}
 			}(i, allParsedData[i])
+			i++
 		}
 
 		// Wait for all threads to finish before we exit
