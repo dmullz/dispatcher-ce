@@ -163,7 +163,7 @@ func main() {
 				for j := 0; j < 10; j++ {
 					res, err := http.Post(pfUrl, "application/json", bytes.NewBuffer(payloadJson))
 
-					if err == nil && res.StatusCode/100 == 2 {
+					if err == nil && (res.StatusCode == 200 || res.StatusCode == 202) {
 						body := []byte{}
 						body, _ = ioutil.ReadAll(res.Body)
 						parsedData := ParsedData{
