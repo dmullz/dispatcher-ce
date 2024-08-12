@@ -252,8 +252,8 @@ func main() {
 						var dufRes DufRes
 						err := json.NewDecoder(res.Body).Decode(&dufRes)
 						if err != nil {
-							fmt.Println("JSON decode for DOWNLOAD UPLOAD FEED RESPONSE error!")
-							panic(err)
+							fmt.Println("JSON decode for DOWNLOAD UPLOAD FEED RESPONSE error! Response Code: %d", res.StatusCode)
+							break
 						}
 						leadsData := LeadsData{
 							Leads:        dufRes.Leads,
