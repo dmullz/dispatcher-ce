@@ -187,10 +187,16 @@ func main() {
 					if err == nil && (res.StatusCode == 200 || res.StatusCode == 202) {
 						body := []byte{}
 						body, _ = ioutil.ReadAll(res.Body)
+						if os.Getenv("env") == "DEV" {
+							fmt.Printf("RAW PARSE FEED BODY: %s\n", string(body))
+						}
 						var parseFeedRes ParseFeedRes
 						err := json.NewDecoder(res.Body).Decode(&parseFeedRes)
 						if err != nil {
 							fmt.Println("JSON decode for PARSE FEED RESPONSE error!")
+						}
+						if os.Getenv("env") == "DEV" {
+							fmt.Printf("DECODED ErrorParsing Value: %d\n", parseFeedRes.ErrorParsing)
 						}
 						feedStatus := FeedStatus{
 							Feed:             feed,
