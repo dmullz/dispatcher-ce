@@ -22,6 +22,7 @@ type RssFeed struct {
 	Magazine        string `json:"Magazine"`
 	Language        string `json:"Language"`
 	PauseIngestion  bool   `json:"Pause_Ingestion"`
+	ErrorCount      int    `json:"Error_Count"`
 }
 
 type Feed struct {
@@ -30,6 +31,7 @@ type Feed struct {
 	LastUpdatedDate string `json:"last_updated_date"`
 	FeedName        string `json:"feed_name"`
 	Language        string `json:"language"`
+	ErrorCount      int    `json:"error_count"`
 }
 
 type FeedPayload struct {
@@ -39,15 +41,27 @@ type FeedPayload struct {
 type ParsedData struct {
 	Body         []byte
 	ParsedStatus int
+	FeedStatus   FeedStatus
+}
+
+type ParseFeedRes struct {
+	ParsedFeed   []byte `json:"parsed_feed"`
+	ErrorParsing int    `json:"error_parsing"`
 }
 
 type DufRes struct {
-	Leads []string `json:"leads"`
+	Leads      []string `json:"leads"`
+	ErrorCount int      `json:"error_count"`
+	Publisher  string   `json:"publisher"`
+	Magazine   string   `json:"magazine"`
 }
 
 type LeadsData struct {
 	Leads        []string
 	DownUpStatus int
+	ErrorCount   int
+	Publisher    string
+	Magazine     string
 }
 
 type LBAResults struct {
@@ -55,8 +69,13 @@ type LBAResults struct {
 	LeadByArticleStatus int
 }
 
+type FeedStatus struct {
+	Feed             Feed
+	ErrorParsing     int
+	ErrorDownloading int
+}
+
 func main() {
-	//TODO Update last updated date in Cloudant
 
 	// Get the namespace we're in so we know how to talk to the Function
 	file := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
@@ -124,12 +143,14 @@ func main() {
 				FeedName:        rssfeed.RssFeedName,
 				LastUpdatedDate: rssfeed.LastUpdatedDate,
 				Language:        rssfeed.Language,
+				ErrorCount:      rssfeed.ErrorCount,
 			}
 			feeds = append(feeds, feed)
 		}
 	}
 
 	count := len(feeds)
+	var allFeedStatuses []FeedStatus
 	fmt.Printf(os.Getenv("env")+" Sending %d requests to Parse Feeds...\n", count)
 
 	// URL to the Function
@@ -157,7 +178,7 @@ func main() {
 			}
 			payloadJson, _ := json.Marshal(feedPayload)
 			wgPF.Add(1)
-			go func(i int, payloadJson []byte) {
+			go func(i int, payloadJson []byte, feed Feed) {
 				defer wgPF.Done()
 				sleep := 1
 				for j := 0; j < 10; j++ {
@@ -166,11 +187,23 @@ func main() {
 					if err == nil && (res.StatusCode == 200 || res.StatusCode == 202) {
 						body := []byte{}
 						body, _ = ioutil.ReadAll(res.Body)
+						var parseFeedRes ParseFeedRes
+						err := json.NewDecoder(res.Body).Decode(&parseFeedRes)
+						if err != nil {
+							fmt.Println("JSON decode for PARSE FEED RESPONSE error!")
+						}
+						feedStatus := FeedStatus{
+							Feed:             feed,
+							ErrorParsing:     parseFeedRes.ErrorParsing,
+							ErrorDownloading: 0,
+						}
 						parsedData := ParsedData{
 							Body:         body,
 							ParsedStatus: 0,
+							FeedStatus:   feedStatus,
 						}
 						parsedDataCh <- parsedData
+
 						break
 					}
 
@@ -195,7 +228,7 @@ func main() {
 					time.Sleep(time.Second * time.Duration(sleep))
 					sleep *= 2
 				}
-			}(i, payloadJson)
+			}(i, payloadJson, feeds[i])
 			i++
 		}
 
@@ -207,6 +240,7 @@ func main() {
 		for chValue := range parsedDataCh {
 			if chValue.ParsedStatus == 0 {
 				allParsedData = append(allParsedData, chValue.Body)
+				allFeedStatuses = append(allFeedStatuses, chValue.FeedStatus)
 			} else {
 				numErrors++
 			}
@@ -253,11 +287,19 @@ func main() {
 						err := json.NewDecoder(res.Body).Decode(&dufRes)
 						if err != nil {
 							fmt.Println("JSON decode for DOWNLOAD UPLOAD FEED RESPONSE error! Response Code: %d", res.StatusCode)
+							leadsData := LeadsData{
+								Leads:        nil,
+								DownUpStatus: 1,
+							}
+							leadsDataCh <- leadsData
 							break
 						}
 						leadsData := LeadsData{
 							Leads:        dufRes.Leads,
 							DownUpStatus: 0,
+							ErrorCount:   dufRes.ErrorCount,
+							Publisher:    dufRes.Publisher,
+							Magazine:     dufRes.Magazine,
 						}
 						leadsDataCh <- leadsData
 						break
@@ -295,6 +337,14 @@ func main() {
 			if chValue.DownUpStatus == 0 {
 				for _, lead := range chValue.Leads {
 					allLeads = append(allLeads, lead)
+				}
+				if chValue.ErrorCount > 0 {
+					fmt.Printf(os.Getenv("env")+" Error downloading articles from Publisher: %s, Magazine: %s, Error Count: %d\n", chValue.Publisher, chValue.Magazine, chValue.ErrorCount)
+					for _, feed := range allFeedStatuses {
+						if feed.Feed.Publisher == chValue.Publisher && feed.Feed.FeedName == chValue.Magazine {
+							feed.ErrorDownloading = chValue.ErrorCount
+						}
+					}
 				}
 			} else {
 				numErrors++
@@ -394,4 +444,64 @@ func main() {
 	}
 
 	fmt.Printf(os.Getenv("env")+" Done. %d Leads Created\n", totalLeadsCreated)
+
+	fmt.Printf(os.Getenv("env") + " Collating errors and sending out alerts if needed\n")
+
+	//Loop through Cloudant docs and update values as necessary
+	var emailFeeds []Feed
+	for _, doc := range findResult.Docs {
+		var rssFeeds []RssFeed
+		b, err := json.Marshal(doc.GetProperty("RSS_Feeds"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s\n", err)
+			os.Exit(1)
+		}
+		err = json.Unmarshal(b, &rssFeeds)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s\n", err)
+			os.Exit(1)
+		}
+		for _, rssfeed := range rssFeeds {
+
+			for _, feedStatus := range allFeedStatuses {
+				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && rssfeed.RssFeedName == feedStatus.Feed.FeedName {
+					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
+						fmt.Printf(os.Getenv("env")+" Updating Feed %s with error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
+						feedStatus.Feed.ErrorCount++
+						rssfeed.ErrorCount++
+						if feedStatus.Feed.ErrorCount > 3 {
+							rssfeed.PauseIngestion = true
+							emailFeeds = append(emailFeeds, feedStatus.Feed)
+						}
+					} else {
+						rssfeed.ErrorCount = 0
+					}
+				}
+			}
+		}
+
+		//Update RSS_Feeds in doc with latest changes
+		rssFeedJson, _ := json.Marshal(rssFeeds)
+		doc.SetProperty("RSS_Feeds", rssFeedJson)
+	}
+
+	//Bulk update Cloudant with changes
+	postBulkDocsOptions := service.NewPostBulkDocsOptions(
+		dbName,
+	)
+	bulkDocs, err := service.NewBulkDocs(
+		findResult.Docs,
+	)
+	if err != nil {
+		panic(err)
+	}
+	postBulkDocsOptions.SetBulkDocs(bulkDocs)
+
+	_, _, err = service.PostBulkDocs(postBulkDocsOptions)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf(os.Getenv("env") + " Done updating Cloudant with latest ErrorCount\n")
+
+	//TODO: Loop through Feeds with high error counts and send emails
 }
