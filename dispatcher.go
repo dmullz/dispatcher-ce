@@ -482,7 +482,12 @@ func main() {
 
 		//Update RSS_Feeds in doc with latest changes
 		rssFeedJson, _ := json.Marshal(rssFeeds)
-		doc.SetProperty("RSS_Feeds", rssFeedJson)
+		var stringInterfaceMapJson map[string]interface{}
+		err = json.Unmarshal(rssFeedJson, &stringInterfaceMapJson)
+		if err != nil {
+			panic(err)
+		}
+		doc.SetProperty("RSS_Feeds", stringInterfaceMapJson)
 	}
 
 	//Bulk update Cloudant with changes
