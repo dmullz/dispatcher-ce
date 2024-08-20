@@ -191,7 +191,7 @@ func main() {
 						//	fmt.Printf("RAW PARSE FEED BODY: %s\n", string(body))
 						//}
 						var parseFeedRes ParseFeedRes
-						err := json.NewDecoder(res.Body).Decode(&parseFeedRes)
+						err := json.NewDecoder(bytes.NewBuffer(body)).Decode(&parseFeedRes)
 						if err != nil {
 							fmt.Printf("JSON decode for PARSE FEED RESPONSE error! Error: %s\n", err)
 						}
