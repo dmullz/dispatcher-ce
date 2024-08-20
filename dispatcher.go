@@ -468,11 +468,10 @@ func main() {
 			os.Exit(1)
 		}
 		for _, rssfeed := range rssFeeds {
-
 			for _, feedStatus := range allFeedStatuses {
 				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && rssfeed.RssFeedName == feedStatus.Feed.FeedName {
 					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
-						fmt.Printf(os.Getenv("env")+" Updating Feed %s with error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
+						fmt.Printf(os.Getenv("env")+" Incrementing Feed %s current ErrorCount %d due to error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, rssfeed.ErrorCount, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
 						feedStatus.Feed.ErrorCount = feedStatus.Feed.ErrorCount + 1
 						rssfeed.ErrorCount = rssfeed.ErrorCount + 1
 						if feedStatus.Feed.ErrorCount > 3 {
