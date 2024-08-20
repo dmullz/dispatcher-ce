@@ -22,7 +22,7 @@ type RssFeed struct {
 	Magazine        string `json:"Magazine"`
 	Language        string `json:"Language"`
 	PauseIngestion  bool   `json:"Pause_Ingestion"`
-	ErrorCount      int    `json:"Error_Count"`
+	ErrorCount      int64  `json:"Error_Count"`
 }
 
 type Feed struct {
@@ -31,7 +31,7 @@ type Feed struct {
 	LastUpdatedDate string `json:"last_updated_date"`
 	FeedName        string `json:"feed_name"`
 	Language        string `json:"language"`
-	ErrorCount      int    `json:"error_count"`
+	ErrorCount      int64  `json:"error_count"`
 }
 
 type FeedPayload struct {
@@ -46,7 +46,7 @@ type ParsedData struct {
 
 type ParseFeedRes struct {
 	ParsedFeed   []byte `json:"parsed_feed"`
-	ErrorParsing int    `json:"error_parsing"`
+	ErrorParsing int64  `json:"error_parsing"`
 }
 
 type DufRes struct {
@@ -71,7 +71,7 @@ type LBAResults struct {
 
 type FeedStatus struct {
 	Feed             Feed
-	ErrorParsing     int
+	ErrorParsing     int64
 	ErrorDownloading int
 }
 
@@ -187,17 +187,17 @@ func main() {
 					if err == nil && (res.StatusCode == 200 || res.StatusCode == 202) {
 						body := []byte{}
 						body, _ = ioutil.ReadAll(res.Body)
-						if os.Getenv("env") == "DEV" {
-							fmt.Printf("RAW PARSE FEED BODY: %s\n", string(body))
-						}
+						//if os.Getenv("env") == "DEV" {
+						//	fmt.Printf("RAW PARSE FEED BODY: %s\n", string(body))
+						//}
 						var parseFeedRes ParseFeedRes
 						err := json.NewDecoder(res.Body).Decode(&parseFeedRes)
 						if err != nil {
-							fmt.Println("JSON decode for PARSE FEED RESPONSE error!")
+							fmt.Printf("JSON decode for PARSE FEED RESPONSE error! Error: %s\n", err)
 						}
-						if os.Getenv("env") == "DEV" {
-							fmt.Printf("DECODED ErrorParsing Value: %d\n", parseFeedRes.ErrorParsing)
-						}
+						//if os.Getenv("env") == "DEV" {
+						//	fmt.Printf("DECODED ErrorParsing Value: %d\n", parseFeedRes.ErrorParsing)
+						//}
 						feedStatus := FeedStatus{
 							Feed:             feed,
 							ErrorParsing:     parseFeedRes.ErrorParsing,
@@ -473,8 +473,8 @@ func main() {
 				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && rssfeed.RssFeedName == feedStatus.Feed.FeedName {
 					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
 						fmt.Printf(os.Getenv("env")+" Updating Feed %s with error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
-						feedStatus.Feed.ErrorCount++
-						rssfeed.ErrorCount++
+						feedStatus.Feed.ErrorCount = feedStatus.Feed.ErrorCount + 1
+						rssfeed.ErrorCount = rssfeed.ErrorCount + 1
 						if feedStatus.Feed.ErrorCount > 3 {
 							rssfeed.PauseIngestion = true
 							emailFeeds = append(emailFeeds, feedStatus.Feed)
