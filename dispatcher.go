@@ -482,7 +482,7 @@ func main() {
 
 		//Update RSS_Feeds in doc with latest changes
 		rssFeedJson, _ := json.Marshal(rssFeeds)
-		var stringInterfaceMapJson map[string]interface{}
+		var stringInterfaceMapJson []map[string]interface{}
 		err = json.Unmarshal(rssFeedJson, &stringInterfaceMapJson)
 		if err != nil {
 			panic(err)
