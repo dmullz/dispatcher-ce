@@ -45,8 +45,8 @@ type ParsedData struct {
 }
 
 type ParseFeedRes struct {
-	ParsedFeed   []byte `json:"parsed_feed"`
-	ErrorParsing int64  `json:"error_parsing"`
+	//ParsedFeed   []byte `json:"parsed_feed"`
+	ErrorParsing int64 `json:"error_parsing"`
 }
 
 type DufRes struct {
