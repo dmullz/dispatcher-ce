@@ -504,6 +504,12 @@ func main() {
 		doc.SetProperty("RSS_Feeds", stringInterfaceMapJson)
 	}
 
+	for _, doc := range findResult.Docs {
+		if os.Getenv("env") == "DEV" {
+			fmt.Printf(os.Getenv("env")+" Updating Feed info in Cloudant: %s\n", doc.GetProperty("RSS_Feeds").(string))
+		}
+	}
+
 	//Bulk update Cloudant with changes
 	postBulkDocsOptions := service.NewPostBulkDocsOptions(
 		dbName,
