@@ -494,6 +494,12 @@ func main() {
 			}
 		}
 
+		if os.Getenv("env") == "DEV" {
+			for _, rssfeed := range newrssFeeds {
+				fmt.Printf(os.Getenv("env")+" Updating Feed %s info in Cloudant with date: %s\n", rssfeed.RssFeedName, rssfeed.LastUpdatedDate)
+			}
+		}
+
 		//Update RSS_Feeds in doc with latest changes
 		rssFeedJson, _ := json.Marshal(newrssFeeds)
 		var stringInterfaceMapJson []map[string]interface{}
