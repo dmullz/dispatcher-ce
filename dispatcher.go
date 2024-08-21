@@ -467,28 +467,28 @@ func main() {
 			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s\n", err)
 			os.Exit(1)
 		}
-		for _, rssfeed := range newrssFeeds {
+		for i := range newrssFeeds {
 			for _, feedStatus := range allFeedStatuses {
-				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && rssfeed.RssFeedName == feedStatus.Feed.FeedName {
+				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && newrssFeeds[i].RssFeedName == feedStatus.Feed.FeedName {
 					todayDate := time.Now()
 					todayString := todayDate.Format("Fri, 12 Apr 2024 21:22:50")
-					rssfeed.LastUpdatedDate = todayString
+					newrssFeeds[i].LastUpdatedDate = todayString
 					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
-						fmt.Printf(os.Getenv("env")+" Incrementing Feed %s current ErrorCount %d due to error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, rssfeed.ErrorCount, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
+						fmt.Printf(os.Getenv("env")+" Incrementing Feed %s current ErrorCount %d due to error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, newrssFeeds[i].ErrorCount, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
 						feedStatus.Feed.ErrorCount = feedStatus.Feed.ErrorCount + 1
-						rssfeed.ErrorCount = rssfeed.ErrorCount + 1
+						newrssFeeds[i].ErrorCount = newrssFeeds[i].ErrorCount + 1
 						if os.Getenv("env") == "DEV" {
-							fmt.Printf(os.Getenv("env")+" New ErrorCount for Feed %s : %d\n", feedStatus.Feed.FeedName, rssfeed.ErrorCount)
+							fmt.Printf(os.Getenv("env")+" New ErrorCount for Feed %s : %d\n", feedStatus.Feed.FeedName, newrssFeeds[i].ErrorCount)
 						}
 						if feedStatus.Feed.ErrorCount > 3 {
-							rssfeed.PauseIngestion = true
+							newrssFeeds[i].PauseIngestion = true
 							emailFeeds = append(emailFeeds, feedStatus.Feed)
 						}
 					} else {
 						if os.Getenv("env") == "DEV" {
 							fmt.Printf(os.Getenv("env")+" Setting ErrorCount to 0 for Feed %s as there were no errors. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
 						}
-						rssfeed.ErrorCount = 0
+						newrssFeeds[i].ErrorCount = 0
 					}
 				}
 			}
