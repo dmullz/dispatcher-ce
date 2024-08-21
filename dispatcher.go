@@ -456,20 +456,23 @@ func main() {
 	//Loop through Cloudant docs and update values as necessary
 	var emailFeeds []Feed
 	for _, doc := range findResult.Docs {
-		var rssFeeds []RssFeed
+		var newrssFeeds []RssFeed
 		b, err := json.Marshal(doc.GetProperty("RSS_Feeds"))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s\n", err)
 			os.Exit(1)
 		}
-		err = json.Unmarshal(b, &rssFeeds)
+		err = json.Unmarshal(b, &newrssFeeds)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s\n", err)
 			os.Exit(1)
 		}
-		for _, rssfeed := range rssFeeds {
+		for _, rssfeed := range newrssFeeds {
 			for _, feedStatus := range allFeedStatuses {
 				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && rssfeed.RssFeedName == feedStatus.Feed.FeedName {
+					todayDate := time.Now()
+					todayString := todayDate.Format("Fri, 12 Apr 2024 21:22:50")
+					rssfeed.LastUpdatedDate = todayString
 					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
 						fmt.Printf(os.Getenv("env")+" Incrementing Feed %s current ErrorCount %d due to error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, rssfeed.ErrorCount, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
 						feedStatus.Feed.ErrorCount = feedStatus.Feed.ErrorCount + 1
@@ -492,7 +495,7 @@ func main() {
 		}
 
 		//Update RSS_Feeds in doc with latest changes
-		rssFeedJson, _ := json.Marshal(rssFeeds)
+		rssFeedJson, _ := json.Marshal(newrssFeeds)
 		var stringInterfaceMapJson []map[string]interface{}
 		err = json.Unmarshal(rssFeedJson, &stringInterfaceMapJson)
 		if err != nil {
