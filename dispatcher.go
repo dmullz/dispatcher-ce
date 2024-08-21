@@ -471,7 +471,7 @@ func main() {
 			for _, feedStatus := range allFeedStatuses {
 				if findResult.Docs[d].GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && newrssFeeds[i].RssFeedName == feedStatus.Feed.FeedName {
 					todayDate := time.Now()
-					todayString := todayDate.Format("2024-08-12 21:22:50")
+					todayString := todayDate.Format("2006-01-02 15:04:05")
 					newrssFeeds[i].LastUpdatedDate = todayString
 					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
 						fmt.Printf(os.Getenv("env")+" Incrementing Feed %s current ErrorCount %d due to error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, newrssFeeds[i].ErrorCount, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
