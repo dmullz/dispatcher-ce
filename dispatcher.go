@@ -504,9 +504,10 @@ func main() {
 		doc.SetProperty("RSS_Feeds", stringInterfaceMapJson)
 	}
 
-	for _, doc := range findResult.Docs {
-		if os.Getenv("env") == "DEV" {
-			fmt.Printf(os.Getenv("env")+" Updating Feed info in Cloudant: %s\n", doc.GetProperty("RSS_Feeds").(string))
+	if os.Getenv("env") == "DEV" {
+		for _, doc := range findResult.Docs {
+			jsonOutput, _ := json.Marshal(doc.GetProperty("RSS_Feeds"))
+			fmt.Printf(os.Getenv("env")+" Updating Feed info in Cloudant: %s\n", string(jsonOutput))
 		}
 	}
 
