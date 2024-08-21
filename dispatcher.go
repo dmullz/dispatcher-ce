@@ -501,6 +501,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		delete(doc.GetProperties(), "RSS_Feeds")
 		doc.SetProperty("RSS_Feeds", stringInterfaceMapJson)
 	}
 
