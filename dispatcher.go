@@ -455,9 +455,9 @@ func main() {
 
 	//Loop through Cloudant docs and update values as necessary
 	var emailFeeds []Feed
-	for _, doc := range findResult.Docs {
+	for d := range findResult.Docs {
 		var newrssFeeds []RssFeed
-		b, err := json.Marshal(doc.GetProperty("RSS_Feeds"))
+		b, err := json.Marshal(findResult.Docs[d].GetProperty("RSS_Feeds"))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s\n", err)
 			os.Exit(1)
@@ -469,9 +469,9 @@ func main() {
 		}
 		for i := range newrssFeeds {
 			for _, feedStatus := range allFeedStatuses {
-				if doc.GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && newrssFeeds[i].RssFeedName == feedStatus.Feed.FeedName {
+				if findResult.Docs[d].GetProperty("Publisher_Name").(string) == feedStatus.Feed.Publisher && newrssFeeds[i].RssFeedName == feedStatus.Feed.FeedName {
 					todayDate := time.Now()
-					todayString := todayDate.Format("Fri, 12 Apr 2024 21:22:50")
+					todayString := todayDate.Format("2024-08-12 21:22:50")
 					newrssFeeds[i].LastUpdatedDate = todayString
 					if feedStatus.ErrorParsing != -1 || feedStatus.ErrorDownloading != 0 {
 						fmt.Printf(os.Getenv("env")+" Incrementing Feed %s current ErrorCount %d due to error. ErrorParsing: %d, ErrorDownloading: %d\n", feedStatus.Feed.FeedName, newrssFeeds[i].ErrorCount, feedStatus.ErrorParsing, feedStatus.ErrorDownloading)
@@ -507,16 +507,15 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		delete(doc.GetProperties(), "RSS_Feeds")
-		doc.SetProperty("RSS_Feeds", stringInterfaceMapJson)
+		findResult.Docs[d].SetProperty("RSS_Feeds", stringInterfaceMapJson)
 	}
 
-	if os.Getenv("env") == "DEV" {
-		for _, doc := range findResult.Docs {
-			jsonOutput, _ := json.Marshal(doc.GetProperty("RSS_Feeds"))
-			fmt.Printf(os.Getenv("env")+" Updating Feed info in Cloudant: %s\n", string(jsonOutput))
-		}
-	}
+	//if os.Getenv("env") == "DEV" {
+	//	for _, doc := range findResult.Docs {
+	//		jsonOutput, _ := json.Marshal(doc.GetProperty("RSS_Feeds"))
+	//		fmt.Printf(os.Getenv("env")+" Updating Feed info in Cloudant: %s\n", string(jsonOutput))
+	//	}
+	//}
 
 	//Bulk update Cloudant with changes
 	postBulkDocsOptions := service.NewPostBulkDocsOptions(
