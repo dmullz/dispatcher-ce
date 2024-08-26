@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -73,6 +75,40 @@ type FeedStatus struct {
 	Feed             Feed
 	ErrorParsing     int64
 	ErrorDownloading int
+}
+
+type BrevoSender struct {
+	Name  string `json:"sender"`
+	Email string `json:"email"`
+}
+
+type BrevoTo struct {
+	Email string `json:"email"`
+}
+
+type BrevoQuery struct {
+	Sender      BrevoSender `json:"sender"`
+	To          []BrevoTo   `json:"to"`
+	Subject     string      `json:"subject"`
+	HtmlContent string      `json:"htmlContent"`
+}
+
+type SFAccessTokenRes struct {
+	AccessToken string `json:"access_token"`
+}
+
+type SFCSMObject struct {
+	Email string `json:"email"`
+}
+
+type SFQueryRecord struct {
+	ClientSuccessManager SFCSMObject `json:"Client_Success_Manager__r"`
+}
+
+type SFQueryRes struct {
+	Records   []SFQueryRecord `json:"records"`
+	TotalSize int             `json:"totalSize"`
+	Done      bool            `json:"done"`
 }
 
 func main() {
@@ -454,7 +490,7 @@ func main() {
 	fmt.Printf(os.Getenv("env") + " Collating errors and sending out alerts if needed\n")
 
 	//Loop through Cloudant docs and update values as necessary
-	var emailFeeds []Feed
+	var emailFeeds []FeedStatus
 	for d := range findResult.Docs {
 		var newrssFeeds []RssFeed
 		b, err := json.Marshal(findResult.Docs[d].GetProperty("RSS_Feeds"))
@@ -482,7 +518,7 @@ func main() {
 						}
 						if feedStatus.Feed.ErrorCount > 3 {
 							newrssFeeds[i].PauseIngestion = true
-							emailFeeds = append(emailFeeds, feedStatus.Feed)
+							emailFeeds = append(emailFeeds, feedStatus)
 						}
 					} else {
 						if os.Getenv("env") == "DEV" {
@@ -535,5 +571,152 @@ func main() {
 	}
 	fmt.Printf(os.Getenv("env") + " Done updating Cloudant with latest ErrorCount\n")
 
-	//TODO: Loop through Feeds with high error counts and send emails
+	if len(emailFeeds) > 0 {
+		err = SendEmails(emailFeeds)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf(os.Getenv("env")+" Done Sending Emails for %d feeds Containing Errors\n", len(emailFeeds))
+	}
+
+	fmt.Printf(os.Getenv("env") + " Done Ingestion.")
+}
+
+func SendEmails(emailFeeds []FeedStatus) error {
+	// Get Salesforce Access Token
+	sf_token, err := GetToken()
+	if err != nil {
+		fmt.Println("Error getting Access Token for SalesForce:", err)
+		return err
+	}
+
+	var csmEmailFeed map[string][]FeedStatus
+
+	for _, emailFeed := range emailFeeds {
+		sfQueryRes, err := QuerySalesForce(sf_token, emailFeed.Feed.FeedName)
+		if err != nil {
+			fmt.Println("Error Querying SalesForce:", err)
+			return err
+		}
+		if sfQueryRes.TotalSize != 1 {
+			fmt.Printf("Error: Client Success Manager Query has invalid size of %d\n", sfQueryRes.TotalSize)
+			return errors.New("Invalid Query Reponse Size")
+		}
+		csmEmailFeed[sfQueryRes.Records[0].ClientSuccessManager.Email] = append(csmEmailFeed[sfQueryRes.Records[0].ClientSuccessManager.Email], emailFeed)
+	}
+
+	for email := range csmEmailFeed {
+		err := SendEmail(email, csmEmailFeed[email])
+		if err != nil {
+			fmt.Println("Error sending email containing feed ingestion errors", err)
+			return err
+		}
+	}
+	return nil
+
+}
+
+func GetToken() (string, error) {
+	params := url.Values{}
+	params.Add("grant_type", "refresh_token")
+	params.Add("client_id", os.Getenv("RF_KEY"))
+	params.Add("client_secret", os.Getenv("RF_SECRET"))
+	params.Add("refresh_token", os.Getenv("RF_TOKEN"))
+	fullURL := os.Getenv("RF_URL") + "?" + params.Encode()
+	res, err := http.Get(fullURL)
+	if err == nil && res.StatusCode/100 == 2 {
+		var sfAccessTokenRes SFAccessTokenRes
+		err := json.NewDecoder(res.Body).Decode(&sfAccessTokenRes)
+		if err != nil {
+			fmt.Println("Error Decoding SalesForce Access Token JSON Response:", err)
+			return "", err
+		}
+		return sfAccessTokenRes.AccessToken, nil
+	}
+	return "", err
+}
+
+func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
+	// Query Salesforce for client success manager email
+	client := &http.Client{}
+	params := url.Values{}
+	params.Add("q", "SELECT+Client_Success_Manager__r.Email+from+Magazine__c+where+Name+like+'"+magazine+"'")
+	fullURL := os.Getenv("SF_URL") + "v61.0/query/?" + params.Encode()
+	req, err := http.NewRequest("GET", fullURL, nil)
+	if err != nil {
+		fmt.Printf("Error creating HTTP request to Salesforce: %s", err)
+		panic(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+sf_token)
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var sfQueryRes SFQueryRes
+	err = json.NewDecoder(resp.Body).Decode(&sfQueryRes)
+	if err != nil {
+		fmt.Println("Error Decoding SalesForce Query JSON Response:", err)
+		return nil, err
+	}
+	return &sfQueryRes, nil
+}
+
+func SendEmail(email string, emailFeeds []FeedStatus) error {
+	//Send email notifying Client Success Manager of Fails using brevo
+
+	email_body := ""
+	email_body = email_body + "Client Success Manager for this email is: " + email
+	for _, emailFeed := range emailFeeds {
+		error_message := ""
+		if emailFeed.ErrorParsing != -1 {
+			switch emailFeed.ErrorParsing {
+			case 0:
+				error_message = error_message + "<li>RSS Feed is empty or Feed URL does not contain any readable Feed XML.</li>"
+			case 401:
+				error_message = error_message + "<li>Ingestion Application is not Authorized to read this RSS Feed.</li>"
+			case 403:
+				error_message = error_message + "<li>RSS Feed has forbidden access to the Ingestion Application.</li>"
+			case 500:
+				error_message = error_message + "<li>RSS Feed XML is in an unknown format and cannot be read.</li>"
+			default:
+				error_message = error_message + "<li>Unknown Error Reading RSS Feed.</li>"
+			}
+		}
+		if emailFeed.ErrorDownloading != 0 {
+			error_message = error_message + "<li>Ingestion Application could not download article text from " + strconv.Itoa(emailFeed.ErrorDownloading) + " articles.</li>"
+		}
+		email_body = email_body + "Feed " + emailFeed.Feed.FeedName + " has had 3 successive errors. Ingestion has been paused for this feed.<br><br>Errors Include:<ul>" + error_message + "</ul><br><br><br>"
+	}
+
+	client := &http.Client{}
+	var toList []BrevoTo
+	toList = append(toList, BrevoTo{Email: "david.mullen.085@gmail.com"})
+	toList = append(toList, BrevoTo{Email: os.Getenv("email_address")})
+	//toList = append(toList, BrevoTo{Email: email})
+	payload := BrevoQuery{
+		Sender: BrevoSender{
+			Name:  "RSS Mailer",
+			Email: "WM.RSS.mailer@gmail.com",
+		},
+		To:          toList,
+		Subject:     "Unable to Ingest Articles from Feed",
+		HtmlContent: "<html><head></head><body>" + email_body + "<br><br><br>WM RSS Mailer</body></html>",
+	}
+	payloadJson, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(payloadJson))
+	if err != nil {
+		fmt.Printf("Error creating HTTP request to Brevo: %s\n", err)
+		return err
+	}
+	req.Header.Set("api-key", os.Getenv("brevo_api_key"))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
 }
