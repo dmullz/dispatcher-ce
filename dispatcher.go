@@ -590,7 +590,7 @@ func SendEmails(emailFeeds []FeedStatus) error {
 		return err
 	}
 
-	var csmEmailFeed map[string][]FeedStatus
+	csmEmailFeed := make(map[string][]FeedStatus)
 
 	for _, emailFeed := range emailFeeds {
 		sfQueryRes, err := QuerySalesForce(sf_token, emailFeed.Feed.FeedName)
