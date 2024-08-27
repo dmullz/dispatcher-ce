@@ -639,16 +639,16 @@ func GetToken() (string, error) {
 func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
 	// Query Salesforce for client success manager email
 	client := &http.Client{}
-	//params := url.Values{}
-	//params.Add("q", "SELECT+Client_Success_Manager__r.Email+from+Magazine__c+where+Name+like+'"+magazine+"'")
-	fullURL := os.Getenv("SF_URL") + "v61.0/query/?q=" + "SELECT+Client_Success_Manager__r.Email+from+Magazine__c+where+Name+like+'" + magazine + "'"
+	params := url.Values{}
+	params.Add("q", "SELECT Client_Success_Manager__r.Email from Magazine__c where Name like '"+magazine+"'")
+	fullURL := os.Getenv("SF_URL") + "v61.0/query/?" + params.Encode()
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
 		fmt.Printf("Error creating HTTP request to Salesforce: %s", err)
-		panic(err)
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+sf_token)
-	req.Header.Set("Accept-Encoding", "identity")
+	req.Header.Set("Content-Type", "application/json")
 	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
