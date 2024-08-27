@@ -656,7 +656,7 @@ func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
 	var sfQueryRes SFQueryRes
 	err = json.NewDecoder(resp.Body).Decode(&sfQueryRes)
 	if err != nil {
-		fmt.Printf("Error Decoding SalesForce Query JSON Response for magazine: %s. Error: %s\n", magazine, err)
+		fmt.Printf("Error Decoding SalesForce Query JSON Response for magazine: %s FullURL: %s Error: %s\n", magazine, fullURL, err)
 		return nil, err
 	}
 	defer resp.Body.Close()
