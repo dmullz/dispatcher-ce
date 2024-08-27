@@ -653,13 +653,13 @@ func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
 		fmt.Println("Error:", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
 	var sfQueryRes SFQueryRes
 	err = json.NewDecoder(resp.Body).Decode(&sfQueryRes)
 	if err != nil {
-		fmt.Println("Error Decoding SalesForce Query JSON Response:", err)
+		fmt.Printf("Error Decoding SalesForce Query JSON Response for magazine: %s. Error: %s\n", magazine, err)
 		return nil, err
 	}
+	defer resp.Body.Close()
 	return &sfQueryRes, nil
 }
 
