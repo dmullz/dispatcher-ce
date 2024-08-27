@@ -648,6 +648,7 @@ func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
 		panic(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+sf_token)
+	req.Header.Set("Accept-Encoding", "identity")
 	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
