@@ -639,9 +639,9 @@ func GetToken() (string, error) {
 func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
 	// Query Salesforce for client success manager email
 	client := &http.Client{}
-	params := url.Values{}
-	params.Add("q", "SELECT+Client_Success_Manager__r.Email+from+Magazine__c+where+Name+like+'"+magazine+"'")
-	fullURL := os.Getenv("SF_URL") + "v61.0/query/?" + params.Encode()
+	//params := url.Values{}
+	//params.Add("q", "SELECT+Client_Success_Manager__r.Email+from+Magazine__c+where+Name+like+'"+magazine+"'")
+	fullURL := os.Getenv("SF_URL") + "v61.0/query/?q=" + "SELECT+Client_Success_Manager__r.Email+from+Magazine__c+where+Name+like+'" + magazine + "'"
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
 		fmt.Printf("Error creating HTTP request to Salesforce: %s", err)
