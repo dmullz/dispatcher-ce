@@ -648,18 +648,19 @@ func QuerySalesForce(sf_token string, magazine string) (*SFQueryRes, error) {
 		panic(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+sf_token)
+	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return nil, err
 	}
+	defer resp.Body.Close()
 	var sfQueryRes SFQueryRes
 	err = json.NewDecoder(resp.Body).Decode(&sfQueryRes)
 	if err != nil {
 		fmt.Printf("Error Decoding SalesForce Query JSON Response for magazine: %s FullURL: %s Error: %s\n", magazine, fullURL, err)
 		return nil, err
 	}
-	defer resp.Body.Close()
 	return &sfQueryRes, nil
 }
 
@@ -711,7 +712,7 @@ func SendEmail(email string, emailFeeds []FeedStatus) error {
 		return err
 	}
 	req.Header.Set("api-key", os.Getenv("brevo_api_key"))
-
+	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error:", err)
