@@ -669,7 +669,7 @@ func SendEmail(email string, emailFeeds []FeedStatus) error {
 	//Send email notifying Client Success Manager of Fails using brevo
 
 	email_body := ""
-	email_body = email_body + "Client Success Manager for this email is: " + email
+	email_body = email_body + "Client Success Manager email for this feed is: " + email + ".<br><br><br>"
 	for _, emailFeed := range emailFeeds {
 		error_message := ""
 		if emailFeed.ErrorParsing != -1 {
