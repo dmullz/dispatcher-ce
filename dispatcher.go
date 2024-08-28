@@ -689,7 +689,7 @@ func SendEmail(email string, emailFeeds []FeedStatus) error {
 		if emailFeed.ErrorDownloading != 0 {
 			error_message = error_message + "<li>Ingestion Application could not download article text from " + strconv.Itoa(emailFeed.ErrorDownloading) + " articles.</li>"
 		}
-		email_body = email_body + "Feed " + emailFeed.Feed.FeedName + " has had 3 successive errors. Ingestion has been paused for this feed.<br><br>Errors Include:<ul>" + error_message + "</ul><br><br><br>"
+		email_body = email_body + "Feed <b>" + emailFeed.Feed.FeedName + "</b> has had 3 successive errors. Ingestion has been paused for this feed.<br><br>Errors Include:<ul>" + error_message + "</ul><br><br><br>"
 	}
 
 	client := &http.Client{}
