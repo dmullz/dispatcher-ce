@@ -383,9 +383,9 @@ func main() {
 				}
 				if chValue.ErrorCount > 0 {
 					fmt.Printf(os.Getenv("env")+" Error downloading articles from Publisher: %s, Magazine: %s, Error Count: %d\n", chValue.Publisher, chValue.Magazine, chValue.ErrorCount)
-					for _, feed := range allFeedStatuses {
-						if feed.Feed.Publisher == chValue.Publisher && feed.Feed.FeedName == chValue.Magazine {
-							feed.ErrorDownloading = chValue.ErrorCount
+					for f := range allFeedStatuses {
+						if allFeedStatuses[f].Feed.Publisher == chValue.Publisher && allFeedStatuses[f].Feed.FeedName == chValue.Magazine {
+							allFeedStatuses[f].ErrorDownloading = chValue.ErrorCount
 						}
 					}
 				}
