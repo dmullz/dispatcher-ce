@@ -91,6 +91,7 @@ type BrevoQuery struct {
 	To          []BrevoTo   `json:"to"`
 	Subject     string      `json:"subject"`
 	HtmlContent string      `json:"htmlContent"`
+	Bcc         []BrevoTo   `json:"bcc"`
 }
 
 type SFAccessTokenRes struct {
@@ -694,15 +695,17 @@ func SendEmail(email string, emailFeeds []FeedStatus) error {
 
 	client := &http.Client{}
 	var toList []BrevoTo
-	toList = append(toList, BrevoTo{Email: "david.mullen.085@gmail.com"})
 	toList = append(toList, BrevoTo{Email: os.Getenv("email_address")})
 	toList = append(toList, BrevoTo{Email: email})
+	var bccList []BrevoTo
+	bccList = append(bccList, BrevoTo{Email: "david.mullen.085@gmail.com"})
 	payload := BrevoQuery{
 		Sender: BrevoSender{
 			Name:  "RSS Mailer",
 			Email: "WM.RSS.mailer@gmail.com",
 		},
 		To:          toList,
+		Bcc:         bccList,
 		Subject:     "Unable to Ingest Articles from Feed",
 		HtmlContent: "<html><head></head><body>" + email_body + "<br><br><br>WM RSS Mailer</body></html>",
 	}
