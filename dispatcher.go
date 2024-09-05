@@ -681,6 +681,8 @@ func SendEmail(email string, emailFeeds []FeedStatus) error {
 				error_message = error_message + "<li>Ingestion Application is not Authorized to read this RSS Feed.</li>"
 			case 403:
 				error_message = error_message + "<li>RSS Feed has forbidden access to the Ingestion Application.</li>"
+			case 404:
+				error_message = error_message + "<li>RSS Feed cannot be found.</li>"
 			case 500:
 				error_message = error_message + "<li>RSS Feed XML is in an unknown format and cannot be read.</li>"
 			default:
