@@ -193,7 +193,7 @@ func main() {
 	// URL to the Function
 	pfUrl := os.Getenv("parse_feed_url")
 
-	// Run Dispatcher for every feed in batches of 200
+	// Run Dispatcher for every feed in batches of 100
 
 	startIndex := 0
 	batchCount := 1
@@ -203,10 +203,10 @@ func main() {
 		wgPF := sync.WaitGroup{}
 
 		// Create channel to store Parse Feed responses
-		parsedDataCh := make(chan ParsedData, min(200, count-startIndex))
+		parsedDataCh := make(chan ParsedData, min(100, count-startIndex))
 
 		i := startIndex
-		for i < startIndex+200 && i < count {
+		for i < startIndex+100 && i < count {
 			var payloadFeeds []Feed
 			payloadFeeds = append(payloadFeeds, feeds[i])
 
@@ -291,7 +291,7 @@ func main() {
 
 		fmt.Printf(os.Getenv("env")+" Parse Feed Batch #: %d Completed with %d Errors so far\n", batchCount, numErrors)
 
-		startIndex = startIndex + 200
+		startIndex = startIndex + 100
 		batchCount++
 	}
 	fmt.Printf(os.Getenv("env") + " Done Dispatching Feeds\n")
@@ -304,7 +304,7 @@ func main() {
 	// URL to the Function
 	dufUrl := os.Getenv("download_upload_url")
 
-	// Run Download-Upload for every feed in batches of 200
+	// Run Download-Upload for every feed in batches of 100
 
 	startIndex = 0
 	batchCount = 1
@@ -314,10 +314,10 @@ func main() {
 		wgDUF := sync.WaitGroup{}
 
 		// Create channel to store Download Upload responses
-		leadsDataCh := make(chan LeadsData, min(200, count-startIndex))
+		leadsDataCh := make(chan LeadsData, min(100, count-startIndex))
 
 		i := startIndex
-		for i < startIndex+200 && i < count {
+		for i < startIndex+100 && i < count {
 			wgDUF.Add(1)
 			go func(i int, payloadJson []byte) {
 				defer wgDUF.Done()
@@ -396,7 +396,7 @@ func main() {
 
 		fmt.Printf(os.Getenv("env")+" Download-Upload Batch #: %d Completed with %d Errors so far\n", batchCount, numErrors)
 
-		startIndex = startIndex + 200
+		startIndex = startIndex + 100
 		batchCount++
 	}
 
@@ -410,7 +410,7 @@ func main() {
 	// URL to the Function
 	lbaUrl := os.Getenv("lead_by_article_url")
 
-	// Run Lead by article for every lead in batches of 200
+	// Run Lead by article for every lead in batches of 100
 
 	startIndex = 0
 	batchCount = 1
@@ -418,9 +418,9 @@ func main() {
 	for startIndex < count {
 		wgLBA := sync.WaitGroup{}
 		// Create channel to store Lead By Article responses
-		lbaResCh := make(chan LBAResults, min(200, count-startIndex))
+		lbaResCh := make(chan LBAResults, min(100, count-startIndex))
 		i := startIndex
-		for i < startIndex+200 && i < count {
+		for i < startIndex+100 && i < count {
 			params := url.Values{}
 			params.Add("article_id", allLeads[i])
 			fullURL := lbaUrl + "?" + params.Encode()
@@ -482,7 +482,7 @@ func main() {
 		fmt.Printf(os.Getenv("env")+" Batch #: %d; Created %d leads with %d Errors\n", batchCount, numLeads, numErrors)
 		totalLeadsCreated = totalLeadsCreated + numLeads
 
-		startIndex = startIndex + 200
+		startIndex = startIndex + 100
 		batchCount++
 	}
 
