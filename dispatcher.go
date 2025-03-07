@@ -595,7 +595,11 @@ func SendEmails(emailFeeds []FeedStatus) error {
 	csmEmailFeed := make(map[string][]FeedStatus)
 
 	for _, emailFeed := range emailFeeds {
-		sfQueryRes, err := QuerySalesForce(sf_token, emailFeed.Feed.FeedName)
+		queryMag := emailFeed.Feed.FeedName
+		if emailFeed.Feed.Publisher == "The New York Times" {
+			queryMag = "The New York Times"
+		}
+		sfQueryRes, err := QuerySalesForce(sf_token, queryMag)
 		if err != nil {
 			fmt.Println("Error Querying SalesForce:", err)
 			return err
