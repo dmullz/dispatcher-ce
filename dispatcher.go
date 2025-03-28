@@ -498,12 +498,12 @@ func main() {
 		b, err := json.Marshal(findResult.Docs[d].GetProperty("RSS_Feeds"))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling RSS_Feeds interface into JSON: %s\n", err)
-			os.Exit(1)
+			break
 		}
 		err = json.Unmarshal(b, &newrssFeeds)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Decoding JSON: %s\n", err)
-			os.Exit(1)
+			break
 		}
 		for i := range newrssFeeds {
 			for _, feedStatus := range allFeedStatuses {
@@ -543,7 +543,8 @@ func main() {
 		var stringInterfaceMapJson []map[string]interface{}
 		err = json.Unmarshal(rssFeedJson, &stringInterfaceMapJson)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Marshaling NEW RSS_Feeds updates into JSON: %s\n", err)
+			break
 		}
 		findResult.Docs[d].SetProperty("RSS_Feeds", stringInterfaceMapJson)
 	}
@@ -563,20 +564,28 @@ func main() {
 		findResult.Docs,
 	)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Creating Bulk Doc for Cloudant with new Errorcounts: %s\n", err)
+		os.Exit(0)
 	}
 	postBulkDocsOptions.SetBulkDocs(bulkDocs)
 
 	_, _, err = service.PostBulkDocs(postBulkDocsOptions)
 	if err != nil {
-		panic(err)
+		//wait and then retry
+		time.Sleep(time.Second)
+		_, _, err = service.PostBulkDocs(postBulkDocsOptions)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Updating Cloudant DB with new Errorcounts: %s\n", err)
+			os.Exit(0)
+		}
 	}
 	fmt.Printf(os.Getenv("env") + " Done updating Cloudant with latest ErrorCount\n")
 
 	if len(emailFeeds) > 0 {
 		err = SendEmails(emailFeeds)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, os.Getenv("env")+" Error Sending Emails for Paused Feeds: %s\n", err)
+			os.Exit(0)
 		}
 		fmt.Printf(os.Getenv("env")+" Done Sending Emails for %d feeds Containing Errors\n", len(emailFeeds))
 	}
